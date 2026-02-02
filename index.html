@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Advanced Multi-System Emulator</title>
+<style>
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  background: #020617; font-family: sans-serif; overflow: hidden;
+}
+#game { width: 100vw; height: 100vh; background: #000; position: absolute; top:0; left:0; }
+#ui { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10; background: rgba(0,0,0,0.6); padding: 1rem; border-radius: 8px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem;}
+button, input { padding: 0.5rem 1rem; border-radius: 6px; border: none; font-size: 1rem; cursor: pointer; }
+button { background: #22d3ee; color: #001018; font-weight: 600; }
+#consoleName { color: #e5e7eb; font-weight: bold; margin-left: 1rem; }
+@media(max-width:600px){#ui { flex-direction: column; }}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <button id="loadBtn">Load ROM</button>
+  <button id="fullscreenBtn">Fullscreen</button>
+  <button id="restartBtn">Restart</button>
+  <button id="pauseBtn">Pause/Resume</button>
+  <span id="consoleName"></span>
+  <input type="range" id="volumeSlider" min="0" max="100" value="100">
+</div>
+
+<input type="file" id="romInput" accept=".nes,.smc,.sfc,.gba,.gbc,.gb,.n64,.z64,.v64,.nds,.3ds,.cia,.iso,.bin,.cue,.gen,.smd,.zip,.img,.exe,.cso,.pkg" style="display:none;">
+<div id="game"></div>
+
+<script>
+const loadBtn = document.getElementById('loadBtn');
+const romInput = document.getElementById('romInput');
+const gameDiv = document.getElementById('game');
+const consoleName = document.getElementById('consoleName');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const restartBtn = document.getElementById('restartBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const volumeSlider = document.getElementById('volumeSlider');
+
+let currentEJS = null;
+let isPaused = false;
+
+const coreMap = {
+  '.nes': 'nes', '.smc': 'snes', '.sfc': 'snes', '.gba': 'gba',
+  '.gbc': 'gbc', '.gb': 'gb', '.n64': 'n64', '.z64': 'n64', '.v64': 'n64',
+  '.nds': 'nds', '.3ds': '3ds', '.cia': '3ds', '.iso': 'ps1',
+  '.bin': 'ps1', '.cue': 'ps1', '.gen': 'genesis', '.smd': 'genesis',
+  '.zip': 'mame', '.img': 'dos', '.exe': 'dos', '.cso': 'psp', '.pkg': 'ps3'
+};
+
+function getCoreFromFilename(filename){
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  return coreMap[ext] || null;
+}
+
+// Open file picker
+loadBtn.addEventListener('click', ()=> romInput.click());
+
+// Load emulator when ROM is selected
+romInput.addEventListener('change', ()=>{
+  const rom = romInput.files[0];
+  if(!rom) return;
+  const core = getCoreFromFilename(rom.name);
+  if(!core) return alert("Unsupported ROM: " + rom.name);
+
+  consoleName.textContent = core.toUpperCase();
+  const romURL = URL.createObjectURL(rom);
+
+  window.EJS_player = "#game";
+  window.EJS_core = core;
+  window.EJS_gameUrl = romURL;
+  window.EJS_pathtodata = "https://cdn.emulatorjs.org/stable/data/";
+
+  const existing = document.getElementById('emulatorJS');
+  if(existing) existing.remove();
+
+  const script = document.createElement('script');
+  script.id = 'emulatorJS';
+  script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
+  script.onload = () => {
+    if(gameDiv.requestFullscreen) gameDiv.requestFullscreen();
+    else if(gameDiv.webkitRequestFullscreen) gameDiv.webkitRequestFullscreen();
+    currentEJS = window.EJS; // Save reference to pause/resume
+  };
+  document.body.appendChild(script);
+});
+
+// Fullscreen toggle
+fullscreenBtn.addEventListener('click', ()=>{
+  if(document.fullscreenElement){
+    document.exitFullscreen();
+  } else {
+    if(gameDiv.requestFullscreen) gameDiv.requestFullscreen();
+    else if(gameDiv.webkitRequestFullscreen) gameDiv.webkitRequestFullscreen();
+  }
+});
+
+// Restart
+restartBtn.addEventListener('click', ()=> loadBtn.click());
+
+// Pause/Resume
+pauseBtn.addEventListener('click', ()=>{
+  if(!currentEJS) return;
+  if(isPaused){
+    currentEJS.resumeGame && currentEJS.resumeGame();
+    isPaused = false;
+  } else {
+    currentEJS.pauseGame && currentEJS.pauseGame();
+    isPaused = true;
+  }
+});
+
+// Volume control
+volumeSlider.addEventListener('input', ()=>{
+  if(!currentEJS) return;
+  if(currentEJS.audio) currentEJS.audio.setVolume(volumeSlider.value/100);
+});
+</script>
+
+</body>
+</html>
